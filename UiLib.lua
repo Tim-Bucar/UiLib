@@ -542,68 +542,84 @@ end
 -- `parent` is a tab page OR a toggle's nested holder, so nesting just works.
 --========================================================================--
 
--- Base "card" row used by every element
-local function makeRow(parent: Instance, height: number): Frame
+-- Base "card" row. AutomaticSize.Y means it grows to fit wrapped text.
+-- The `minHeight` you pass acts as the minimum (single-line) height.
+-- `vpad` adds symmetric top/bottom padding so short content stays centered
+-- and longer content gets breathing room.
+local function makeRow(parent: Instance, minHeight: number, vpad: number?): Frame
 	local row = make("Frame", {
-		Size = UDim2.new(1, 0, 0, height),
+		Size = UDim2.new(1, 0, 0, minHeight),
+		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundColor3 = Theme.Element,
 		BorderSizePixel = 0,
 		Parent = parent,
 	}) :: Frame
 	corner(row, 6)
+	if vpad then
+		make("UIPadding", {
+			PaddingTop = UDim.new(0, vpad), PaddingBottom = UDim.new(0, vpad),
+			Parent = row,
+		})
+	end
 	return row
 end
 
--- extra row height to make room for a description line
-local DESC_EXTRA = 16
+-- Wrapping title + optional description, stacked on the left.
+-- The row must use AutomaticSize.Y so it grows when the text wraps.
+--   rightReserve = px kept clear on the right for the control
+--   xOffset      = left inset (0 if the parent already has left padding)
+local function makeHeader(parent: Instance, title: string, description: string?,
+		rightReserve: number?, xOffset: number?): TextLabel
+	rightReserve = rightReserve or 64
+	xOffset = xOffset or 12
 
--- Title + optional description.
---   topAlign = true  -> title pinned near the top (used by the slider,
---                       which keeps its bar at the bottom)
---   topAlign = false -> title/description pair centered vertically
-local function makeRowTitle(row: Instance, text: string, description: string?, topAlign: boolean?): TextLabel
-	local hasDesc = description ~= nil and description ~= ""
+	local header = make("Frame", {
+		Position = UDim2.new(0, xOffset, 0, 0),
+		Size = UDim2.new(1, -(rightReserve + xOffset), 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		Parent = parent,
+	})
+	make("UIListLayout", {
+		FillDirection = Enum.FillDirection.Vertical,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Padding = UDim.new(0, 2),
+		Parent = header,
+	})
 
-	local title = make("TextLabel", {
-		Size = UDim2.new(1, -110, 0, 18),
+	local titleLbl = make("TextLabel", {
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundTransparency = 1,
 		Font = Theme.TitleFont,
 		TextSize = 14,
 		TextColor3 = Theme.Text,
 		TextXAlignment = Enum.TextXAlignment.Left,
-		TextYAlignment = Enum.TextYAlignment.Center,
-		Text = text,
-		Parent = row,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		TextWrapped = true,
+		Text = title,
+		LayoutOrder = 1,
+		Parent = header,
 	}) :: TextLabel
 
-	if topAlign then
-		title.Position = UDim2.fromOffset(12, 6)
-	else
-		title.AnchorPoint = Vector2.new(0, 0.5)
-		title.Position = UDim2.new(0, 12, 0.5, hasDesc and -8 or 0)
-	end
-
-	if hasDesc then
-		local desc = make("TextLabel", {
-			Size = UDim2.new(1, -90, 0, 14),
+	if description ~= nil and description ~= "" then
+		make("TextLabel", {
+			Size = UDim2.new(1, 0, 0, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
 			BackgroundTransparency = 1,
 			Font = Theme.BodyFont,
 			TextSize = 11,
 			TextColor3 = Theme.SubText,
 			TextXAlignment = Enum.TextXAlignment.Left,
-			TextYAlignment = Enum.TextYAlignment.Center,
+			TextYAlignment = Enum.TextYAlignment.Top,
+			TextWrapped = true,
 			Text = description,
-			Parent = row,
+			LayoutOrder = 2,
+			Parent = header,
 		})
-		if topAlign then
-			desc.Position = UDim2.fromOffset(12, 24)
-		else
-			desc.AnchorPoint = Vector2.new(0, 0.5)
-			desc.Position = UDim2.new(0, 12, 0.5, 9)
-		end
 	end
 
-	return title
+	return titleLbl
 end
 
 --------------------------------------------------------------------------
@@ -625,12 +641,13 @@ function createToggle(window, parent, config)
 	})
 	listLayout(container, 6)
 
-	local row = makeRow(container, 40 + (config.Description and DESC_EXTRA or 0))
-	makeRowTitle(row, config.Title or "Toggle", config.Description)
+	local row = makeRow(container, 40, 11)
+	makeHeader(row, config.Title or "Toggle", config.Description, 64)
 
-	-- clickable overlay
+	-- clickable overlay (expands past the row's vertical padding)
 	local hit = make("TextButton", {
-		Size = UDim2.new(1, 0, 1, 0),
+		Size = UDim2.new(1, 0, 1, 22),
+		Position = UDim2.new(0, 0, 0, -11),
 		BackgroundTransparency = 1,
 		Text = "",
 		Parent = row,
@@ -731,27 +748,48 @@ function createSlider(window, parent, config)
 	local value = math.clamp(roundTo(config.Default or min, inc), min, max)
 	local callback = config.Callback
 
-	local row = makeRow(parent, 52 + (config.Description and 18 or 0))
-	makeRowTitle(row, config.Title or "Slider", config.Description, true)
+	local row = makeRow(parent, 50)
+	make("UIPadding", {
+		PaddingTop = UDim.new(0, 10), PaddingBottom = UDim.new(0, 12),
+		PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12),
+		Parent = row,
+	})
+	make("UIListLayout", {
+		FillDirection = Enum.FillDirection.Vertical,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Padding = UDim.new(0, 8),
+		Parent = row,
+	})
+
+	-- top line: title/description on the left, value on the right
+	local top = make("Frame", {
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		LayoutOrder = 1,
+		Parent = row,
+	})
+	makeHeader(top, config.Title or "Slider", config.Description, 90, 0)
 
 	local valueLabel = make("TextLabel", {
 		Size = UDim2.new(0, 80, 0, 18),
-		Position = UDim2.new(1, -90, 0, 6),
+		Position = UDim2.new(1, 0, 0, 1),
+		AnchorPoint = Vector2.new(1, 0),
 		BackgroundTransparency = 1,
 		Font = Theme.BodyFont,
 		TextSize = 13,
 		TextColor3 = Theme.SubText,
 		TextXAlignment = Enum.TextXAlignment.Right,
 		Text = fmt(value),
-		Parent = row,
+		Parent = top,
 	})
 
-	-- bar
+	-- bar (sits below the title line)
 	local bar = make("Frame", {
-		Size = UDim2.new(1, -24, 0, 6),
-		Position = UDim2.new(0, 12, 1, -16),
+		Size = UDim2.new(1, 0, 0, 6),
 		BackgroundColor3 = Theme.Divider,
 		BorderSizePixel = 0,
+		LayoutOrder = 2,
 		Parent = row,
 	})
 	corner(bar, 3)
@@ -831,8 +869,8 @@ function createTextBox(window, parent, config)
 	local obj = {}
 	local callback = config.Callback
 
-	local row = makeRow(parent, 40 + (config.Description and DESC_EXTRA or 0))
-	makeRowTitle(row, config.Title or "Input", config.Description)
+	local row = makeRow(parent, 40, 11)
+	makeHeader(row, config.Title or "Input", config.Description, 150)
 
 	local box = make("TextBox", {
 		Size = UDim2.new(0, 130, 0, 26),
@@ -878,7 +916,8 @@ function createButton(window, parent, config)
 
 	-- the whole row is the button
 	local row = make("TextButton", {
-		Size = UDim2.new(1, 0, 0, 40 + (config.Description and DESC_EXTRA or 0)),
+		Size = UDim2.new(1, 0, 0, 40),
+		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundColor3 = Theme.Element,
 		BorderSizePixel = 0,
 		AutoButtonColor = false,
@@ -886,8 +925,11 @@ function createButton(window, parent, config)
 		Parent = parent,
 	})
 	corner(row, 6)
+	make("UIPadding", {
+		PaddingTop = UDim.new(0, 11), PaddingBottom = UDim.new(0, 11), Parent = row,
+	})
 
-	local label = makeRowTitle(row, config.Title or "Button", config.Description)
+	local label = makeHeader(row, config.Title or "Button", config.Description, 28)
 
 	-- small chevron-ish accent on the right so it reads as actionable
 	make("Frame", {
