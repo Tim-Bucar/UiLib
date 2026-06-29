@@ -45,14 +45,26 @@ local TweenService       = game:GetService("TweenService")
 -- Theme  (tweak everything in one place)
 --========================================================================--
 local Theme = {
-	TopBar   = Color3.fromRGB(20, 20, 22),
-	Sidebar  = Color3.fromRGB(26, 26, 28),
-	Content  = Color3.fromRGB(40, 40, 43),
-	Element  = Color3.fromRGB(52, 52, 56),
-	Divider  = Color3.fromRGB(58, 58, 64),
-	Accent   = Color3.fromRGB(100, 170, 255),
-	Text     = Color3.fromRGB(235, 235, 240),
-	SubText  = Color3.fromRGB(160, 160, 170),
+	-- base layers — cool slate with a real step between each level so the
+	-- UI reads as layered instead of one flat sheet of grey
+	TopBar      = Color3.fromRGB(15, 16, 22),
+	Sidebar     = Color3.fromRGB(18, 19, 26),
+	Content     = Color3.fromRGB(23, 24, 32),
+	Element     = Color3.fromRGB(32, 34, 44),
+	ElementTop  = Color3.fromRGB(39, 41, 53), -- lighter top edge for subtle sheen
+	ElementHover= Color3.fromRGB(42, 45, 58),
+	Divider     = Color3.fromRGB(42, 44, 56),
+	Stroke      = Color3.fromRGB(48, 51, 66),
+
+	Text     = Color3.fromRGB(237, 239, 246),
+	SubText  = Color3.fromRGB(136, 141, 159),
+
+	Accent     = Color3.fromRGB(126, 122, 255), -- indigo-violet, not the default sky blue
+	AccentDeep = Color3.fromRGB(96, 90, 232),
+
+	Good = Color3.fromRGB(86, 214, 142),
+	Warn = Color3.fromRGB(240, 188, 96),
+	Bad  = Color3.fromRGB(240, 96, 110),
 
 	TitleFont = Enum.Font.FredokaOne, -- top bar / headers, as requested
 	BodyFont  = Enum.Font.Gotham,     -- values / textboxes
@@ -96,6 +108,29 @@ local function listLayout(parent: Instance, gap: number): UIListLayout
 	}) :: UIListLayout
 end
 
+-- subtle vertical sheen: lighter at the top, base at the bottom
+local function gradient(parent: Instance, top: Color3, bottom: Color3, rotation: number?)
+	make("UIGradient", {
+		Color = ColorSequence.new(top, bottom),
+		Rotation = rotation or 90,
+		Parent = parent,
+	})
+end
+
+local function stroke(parent: Instance, color: Color3?, transparency: number?, thickness: number?)
+	make("UIStroke", {
+		Color = color or Theme.Stroke,
+		Transparency = transparency or 0,
+		Thickness = thickness or 1,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Parent = parent,
+	})
+end
+
+local function darken(c: Color3, f: number): Color3
+	return Color3.new(c.R * f, c.G * f, c.B * f)
+end
+
 local function roundTo(value: number, increment: number): number
 	if increment <= 0 then return value end
 	return math.floor(value / increment + 0.5) * increment
@@ -131,7 +166,7 @@ function Library:CreateWindow(config)
 	self.Tabs   = {}            -- { button = TextButton, page = ScrollingFrame }
 	self.Active = nil
 
-	local playerGui = game:WaitForChild("CoreGui")
+	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 
 	-- ScreenGui ---------------------------------------------------------
 	self.Gui = make("ScreenGui", {
@@ -153,10 +188,10 @@ function Library:CreateWindow(config)
 		ClipsDescendants = true,            -- so square inner frames respect the rounded corner
 		Parent = self.Gui,
 	})
-	corner(self.Main, 8)
+	corner(self.Main, 10)
 	make("UIStroke", {
 		Color = Color3.fromRGB(0, 0, 0),
-		Transparency = 0.45,
+		Transparency = 0.35,
 		Thickness = 1,
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 		Parent = self.Main,
@@ -165,15 +200,16 @@ function Library:CreateWindow(config)
 	-- Top bar -----------------------------------------------------------
 	self.TopBar = make("Frame", {
 		Name = "TopBar",
-		Size = UDim2.new(1, 0, 0, 38),
-		BackgroundColor3 = Theme.TopBar,
+		Size = UDim2.new(1, 0, 0, 40),
+		BackgroundColor3 = Color3.new(1, 1, 1),  -- white so the gradient shows true
 		BorderSizePixel = 0,
 		Parent = self.Main,
 	})
+	gradient(self.TopBar, Color3.fromRGB(24, 25, 33), Theme.TopBar)
 	self.TitleLabel = make("TextLabel", {
 		Name = "Title",
 		Size = UDim2.new(1, -56, 1, 0),       -- leave room for the minimize button
-		Position = UDim2.fromOffset(14, 0),
+		Position = UDim2.fromOffset(16, 0),
 		BackgroundTransparency = 1,
 		Font = Theme.TitleFont,
 		TextSize = 18,
@@ -184,12 +220,12 @@ function Library:CreateWindow(config)
 		Parent = self.TopBar,
 	})
 
-	-- thin separation line under the top bar
+	-- a thin accent line under the top bar (a small designed touch)
 	make("Frame", {
 		Size = UDim2.new(1, 0, 0, 1),
-		Position = UDim2.fromOffset(0, 38),
-		BackgroundColor3 = Color3.fromRGB(0, 0, 0),
-		BackgroundTransparency = 0.4,
+		Position = UDim2.fromOffset(0, 40),
+		BackgroundColor3 = self.Accent,
+		BackgroundTransparency = 0.45,
 		BorderSizePixel = 0,
 		ZIndex = 2,
 		Parent = self.TopBar,
@@ -231,8 +267,8 @@ function Library:CreateWindow(config)
 	-- Sidebar -----------------------------------------------------------
 	self.Sidebar = make("Frame", {
 		Name = "Sidebar",
-		Size = UDim2.new(0, 140, 1, -38),
-		Position = UDim2.fromOffset(0, 38),
+		Size = UDim2.new(0, 146, 1, -40),
+		Position = UDim2.fromOffset(0, 40),
 		BackgroundColor3 = Theme.Sidebar,
 		BorderSizePixel = 0,
 		Parent = self.Main,
@@ -242,14 +278,14 @@ function Library:CreateWindow(config)
 		BackgroundTransparency = 1,
 		Parent = self.Sidebar,
 	})
-	padding(tabHolder, 8)
+	padding(tabHolder, 10)
 	listLayout(tabHolder, 6)
 	self.TabHolder = tabHolder
 
-	-- subtle divider between sidebar and content (the faint line in your image)
+	-- subtle divider between sidebar and content
 	self.Divider = make("Frame", {
-		Size = UDim2.new(0, 1, 1, -38),
-		Position = UDim2.fromOffset(140, 38),
+		Size = UDim2.new(0, 1, 1, -40),
+		Position = UDim2.fromOffset(146, 40),
 		BackgroundColor3 = Theme.Divider,
 		BorderSizePixel = 0,
 		Parent = self.Main,
@@ -258,8 +294,8 @@ function Library:CreateWindow(config)
 	-- Content holder (pages get parented here) --------------------------
 	self.Content = make("Frame", {
 		Name = "Content",
-		Size = UDim2.new(1, -141, 1, -38),
-		Position = UDim2.fromOffset(141, 38),
+		Size = UDim2.new(1, -147, 1, -40),
+		Position = UDim2.fromOffset(147, 40),
 		BackgroundTransparency = 1,
 		Parent = self.Main,
 	})
@@ -364,14 +400,14 @@ function Window:SetMinimized(state: boolean)
 	self.Minimized = state
 	self._animating = true
 
-	local dur  = 0.22
-	local info = TweenInfo.new(dur, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local dur  = 0.30
+	local info = TweenInfo.new(dur, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
 
 	if state then
 		-- COLLAPSE -------------------------------------------------------
 		self._fullSize = self.Main.Size          -- remember current (possibly resized) size
 		self.ResizeGrip.Visible = false
-		local collapsed = UDim2.new(self._fullSize.X.Scale, self._fullSize.X.Offset, 0, 38)
+		local collapsed = UDim2.new(self._fullSize.X.Scale, self._fullSize.X.Offset, 0, 40)
 		TweenService:Create(self.Main, info, { Size = collapsed }):Play()
 		task.delay(dur, function()
 			-- hide the panels so nothing can poke out below the bar
@@ -416,7 +452,7 @@ function Window:AddTab(image: string?, title: string)
 	-- Sidebar button
 	local button = make("TextButton", {
 		Name = title,
-		Size = UDim2.new(1, 0, 0, 34),
+		Size = UDim2.new(1, 0, 0, 36),
 		BackgroundColor3 = Theme.Element,
 		BackgroundTransparency = 1, -- highlighted only when active / hovered
 		AutoButtonColor = false,
@@ -424,17 +460,25 @@ function Window:AddTab(image: string?, title: string)
 		ClipsDescendants = true,
 		Parent = self.TabHolder,
 	})
-	corner(button, 6)
+	corner(button, 8)
+	local glow = make("UIStroke", {
+		Color = self.Accent,
+		Transparency = 1,                  -- shown only when active
+		Thickness = 1,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Parent = button,
+	})
 
 	-- active accent bar on the left (kept out of the layout flow)
 	local indicator = make("Frame", {
 		Name = "Indicator",
-		Size = UDim2.new(0, 3, 0.5, 0),
-		Position = UDim2.new(0, 0, 0.5, 0),
+		Size = UDim2.new(0, 3, 0.6, 0),
+		Position = UDim2.new(0, 1, 0.5, 0),
 		AnchorPoint = Vector2.new(0, 0.5),
 		BackgroundColor3 = self.Accent,
 		BorderSizePixel = 0,
 		Visible = false,
+		ZIndex = 2,
 		Parent = button,
 	})
 	corner(indicator, 2)
@@ -504,6 +548,7 @@ function Window:AddTab(image: string?, title: string)
 
 	tab.Button = button
 	tab.Indicator = indicator
+	tab.Glow = glow
 	tab.Page   = page
 	table.insert(self.Tabs, tab)
 
@@ -521,17 +566,28 @@ function Window:AddTab(image: string?, title: string)
 end
 
 function Window:SelectTab(tab)
+	local activeBg = Theme.Element:Lerp(self.Accent, 0.16)
 	for _, t in ipairs(self.Tabs) do
 		local on = (t == tab)
 		t.Page.Visible = on
 		t.Indicator.Visible = on
-		TweenService:Create(t.Button, TweenInfo.new(0.12),
-			{ BackgroundTransparency = on and 0 or 1 }):Play()
+		TweenService:Create(t.Button, TweenInfo.new(0.14), {
+			BackgroundTransparency = on and 0 or 1,
+			BackgroundColor3 = on and activeBg or Theme.Element,
+		}):Play()
+		TweenService:Create(t.Glow, TweenInfo.new(0.14),
+			{ Transparency = on and 0.55 or 1 }):Play()
 		local content = t.Button:FindFirstChild("Content")
 		local label = content and content:FindFirstChildOfClass("TextLabel")
-		if label then label.TextColor3 = on and Theme.Text or Theme.SubText end
+		if label then
+			TweenService:Create(label, TweenInfo.new(0.14),
+				{ TextColor3 = on and Theme.Text or Theme.SubText }):Play()
+		end
 		local icon = content and content:FindFirstChildOfClass("ImageLabel")
-		if icon then icon.ImageColor3 = on and self.Accent or Theme.SubText end
+		if icon then
+			TweenService:Create(icon, TweenInfo.new(0.14),
+				{ ImageColor3 = on and self.Accent or Theme.SubText }):Play()
+		end
 	end
 	self.Active = tab
 end
@@ -554,7 +610,8 @@ local function makeRow(parent: Instance, minHeight: number, vpad: number?): Fram
 		BorderSizePixel = 0,
 		Parent = parent,
 	}) :: Frame
-	corner(row, 6)
+	corner(row, 8)
+	stroke(row, Theme.Stroke, 0.4)
 	if vpad then
 		make("UIPadding", {
 			PaddingTop = UDim.new(0, vpad), PaddingBottom = UDim.new(0, vpad),
@@ -711,6 +768,9 @@ function createToggle(window, parent, config)
 		nested.Visible = state
 	end
 	render(false)
+	-- sync whatever this toggle controls with its starting state, so a
+	-- Default = true toggle isn't one click "out of phase" with its feature
+	if callback then task.spawn(callback, state) end
 
 	hit.MouseButton1Click:Connect(function()
 		state = not state
@@ -795,11 +855,12 @@ function createSlider(window, parent, config)
 	corner(bar, 3)
 	local fill = make("Frame", {
 		Size = UDim2.fromScale((value - min) / (max - min), 1),
-		BackgroundColor3 = window.Accent,
+		BackgroundColor3 = Color3.new(1, 1, 1),  -- white so the gradient is true accent
 		BorderSizePixel = 0,
 		Parent = bar,
 	})
 	corner(fill, 3)
+	gradient(fill, window.Accent, darken(window.Accent, 0.78), 0)
 	local knob = make("Frame", {
 		Size = UDim2.fromOffset(14, 14),
 		AnchorPoint = Vector2.new(0.5, 0.5),
@@ -873,7 +934,7 @@ function createTextBox(window, parent, config)
 	makeHeader(row, config.Title or "Input", config.Description, 150)
 
 	local box = make("TextBox", {
-		Size = UDim2.new(0, 130, 0, 26),
+		Size = UDim2.new(0, 130, 0, 28),
 		Position = UDim2.new(1, -142, 0.5, 0),
 		AnchorPoint = Vector2.new(0, 0.5),
 		BackgroundColor3 = Theme.Content,
@@ -887,11 +948,28 @@ function createTextBox(window, parent, config)
 		ClearTextOnFocus = false,
 		Parent = row,
 	})
-	corner(box, 5)
+	corner(box, 6)
+	local boxStroke = make("UIStroke", {
+		Color = Theme.Stroke,
+		Transparency = 0.2,
+		Thickness = 1,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Parent = box,
+	})
 	make("UIPadding", {
 		PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8),
 		Parent = box,
 	})
+
+	-- accent border while typing
+	box.Focused:Connect(function()
+		TweenService:Create(boxStroke, TweenInfo.new(0.12),
+			{ Color = window.Accent, Transparency = 0 }):Play()
+	end)
+	box.FocusLost:Connect(function()
+		TweenService:Create(boxStroke, TweenInfo.new(0.12),
+			{ Color = Theme.Stroke, Transparency = 0.2 }):Play()
+	end)
 
 	box.FocusLost:Connect(function(enterPressed)
 		if callback then callback(box.Text, enterPressed) end
@@ -924,16 +1002,17 @@ function createButton(window, parent, config)
 		Text = "",
 		Parent = parent,
 	})
-	corner(row, 6)
+	corner(row, 8)
+	stroke(row, Theme.Stroke, 0.4)
 	make("UIPadding", {
 		PaddingTop = UDim.new(0, 11), PaddingBottom = UDim.new(0, 11), Parent = row,
 	})
 
 	local label = makeHeader(row, config.Title or "Button", config.Description, 28)
 
-	-- small chevron-ish accent on the right so it reads as actionable
+	-- small accent dot on the right so it reads as actionable
 	make("Frame", {
-		Size = UDim2.fromOffset(6, 6),
+		Size = UDim2.fromOffset(7, 7),
 		Position = UDim2.new(1, -16, 0.5, 0),
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		BackgroundColor3 = window.Accent,
@@ -941,10 +1020,12 @@ function createButton(window, parent, config)
 		Parent = row,
 	})
 
+	local pressed = Theme.Element:Lerp(window.Accent, 0.35)
+
 	-- hover + press feedback
 	row.MouseEnter:Connect(function()
 		TweenService:Create(row, TweenInfo.new(0.12),
-			{ BackgroundColor3 = Color3.fromRGB(64, 64, 70) }):Play()
+			{ BackgroundColor3 = Theme.ElementHover }):Play()
 	end)
 	row.MouseLeave:Connect(function()
 		TweenService:Create(row, TweenInfo.new(0.12),
@@ -952,11 +1033,11 @@ function createButton(window, parent, config)
 	end)
 
 	row.MouseButton1Click:Connect(function()
-		-- quick press flash
-		TweenService:Create(row, TweenInfo.new(0.08),
-			{ BackgroundColor3 = window.Accent }):Play()
-		task.delay(0.1, function()
-			TweenService:Create(row, TweenInfo.new(0.15),
+		-- quick accent-tinted press flash
+		TweenService:Create(row, TweenInfo.new(0.07),
+			{ BackgroundColor3 = pressed }):Play()
+		task.delay(0.09, function()
+			TweenService:Create(row, TweenInfo.new(0.18),
 				{ BackgroundColor3 = Theme.Element }):Play()
 		end)
 		if callback then task.spawn(callback) end
@@ -1165,7 +1246,7 @@ function Library:CreateKeySystem(config)
 		if busy then return end
 		local key = box.Text
 		if key == "" then
-			obj:SetStatus("Enter a key first.", Color3.fromRGB(235, 180, 90))
+			obj:SetStatus("Enter a key first.", Theme.Warn)
 			return
 		end
 		busy = true
@@ -1181,7 +1262,7 @@ function Library:CreateKeySystem(config)
 
 		if valid then
 			submit.Text = "Success"
-			submit.BackgroundColor3 = Color3.fromRGB(80, 190, 120)
+			submit.BackgroundColor3 = Theme.Good
 			-- fade everything out, then destroy and fire OnSuccess
 			TweenService:Create(dim, TweenInfo.new(0.25), { BackgroundTransparency = 1 }):Play()
 			TweenService:Create(card, TweenInfo.new(0.25), { BackgroundTransparency = 1 }):Play()
@@ -1207,7 +1288,7 @@ function Library:CreateKeySystem(config)
 			busy = false
 			submit.Text = "Submit"
 			submit.AutoButtonColor = true
-			obj:SetStatus("Invalid key. Try again.", Color3.fromRGB(235, 90, 90))
+			obj:SetStatus("Invalid key. Try again.", Theme.Bad)
 			if config.OnFail then task.spawn(config.OnFail, key) end
 			task.spawn(shake)
 		end
